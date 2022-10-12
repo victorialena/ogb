@@ -1,5 +1,10 @@
 import torch
+import pandas as pd
+import numpy as np
 
+DIR_PATH = '/home/victorialena/ogb/examples/linkproppred/'
+
+import pdb
 
 class Logger(object):
     def __init__(self, runs, info=None):
@@ -42,3 +47,34 @@ class Logger(object):
             print(f'  Final Train: {r.mean():.2f} ± {r.std():.2f}')
             r = best_result[:, 3]
             print(f'   Final Test: {r.mean():.2f} ± {r.std():.2f}')
+
+
+class MultiLogger(object):
+    def __init__(self, metrics, runs, info=None):
+        self.loggers = {m: Logger(runs, info) for m in metrics}
+        self.meta = {m: [[] for _ in range(runs)] for m in ['Loss', 'Epoch']}
+
+    def __getitem__(self, arg):
+        return self.loggers[arg]
+
+    def keys(self):
+        return self.loggers.keys()
+
+    def add_results(self, run, epoch, loss, results):
+        try:
+            for key, result in results.items():
+                self.loggers[key].add_result(run, result)
+            self.meta['Loss'][run].append(loss)
+            self.meta['Epoch'][run].append(epoch)
+        except:
+            AssertionError('Failed to save results to Logger.')
+
+    def save_as(self, filename, dir=DIR_PATH+'data/'):
+        data = {'Run': sum([[i]*len(_) for i,_ in enumerate(self.meta['Epoch'])], []),
+                'Epoch': sum(self.meta['Epoch'], [])}
+        for key, logger in self.loggers.items():
+            X = np.stack(sum(logger.results, [])).T
+            for x, label in zip(X, ['_train', '_valid', '_test']):
+                data[key+label] = x
+        stats = pd.DataFrame(data)
+        stats.to_csv(dir+filename)

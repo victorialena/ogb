@@ -7,7 +7,7 @@ from torch_geometric.utils import negative_sampling
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
 
-from logger import Logger
+from examples.linkproppred.logger import Logger
 
 
 class LinkPredictor(torch.nn.Module):

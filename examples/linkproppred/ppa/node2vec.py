@@ -3,6 +3,9 @@ import argparse
 import torch
 from torch_geometric.nn import Node2Vec
 
+import sys
+sys.path.append('/home/victorialena/ogb')
+
 from ogb.linkproppred import PygLinkPropPredDataset
 
 
