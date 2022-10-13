@@ -320,24 +320,16 @@ def main():
 
     #Select k nodes randomly in ddi graph as targets
     badian=np.random.choice(4267, 512, replace=False)
-    print('badian is:',badian)
 
     distance_feature=[]
-
     for x in range(0,4267):
         distance_feature.append([])
         for y in badian:
             dis=distance_encoding(x,y)
             distance_feature[x].append(dis)
 
-    print('distance_feature is:',distance_feature)
     distance_feature=torch.tensor(distance_feature,dtype=torch.float).to(device)
-    
     emb = torch.nn.Embedding.from_pretrained(distance_feature,freeze=False).to(device)
-    
-    print('Number of parameters:',
-          sum(p.numel() for p in list(model.parameters()) +
-          list(predictor.parameters()) + list(emb.parameters()) + list(emb_ea.parameters())))
 
     edge_attr = distance_feature[edge_index, :].mean(0)[:, node_mask].mean(2)
 
