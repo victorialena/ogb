@@ -18,7 +18,6 @@ from examples.linkproppred.logger import Logger, MultiLogger
 from readout import PyGEquivariantReadOut
 
 
-
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):

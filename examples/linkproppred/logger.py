@@ -69,6 +69,11 @@ class MultiLogger(object):
         except:
             AssertionError('Failed to save results to Logger.')
 
+    def print_statistics(self, run):
+        for key in self.loggers.keys():
+            print(key)
+            self.loggers[key].print_statistics(run)
+
     def save_as(self, filename, dir=DIR_PATH+'data/'):
         data = {'Run': sum([[i]*len(_) for i,_ in enumerate(self.meta['Epoch'])], []),
                 'Epoch': sum(self.meta['Epoch'], [])}

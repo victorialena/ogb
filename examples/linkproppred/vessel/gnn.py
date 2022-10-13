@@ -7,9 +7,15 @@ from torch.utils.data import DataLoader
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, SAGEConv
 
-from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+import sys
+sys.path.append('/home/victorialena/ogb')
+sys.path.append('/home/victorialena/homomorphicReadOut/')
 
-from logger import Logger
+from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+from examples.linkproppred.link_predictor import LinkPredictor
+from examples.linkproppred.logger import Logger, MultiLogger
+from readout import PyGEquivariantReadOut
+
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
@@ -64,33 +70,6 @@ class SAGE(torch.nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return x
-
-
-class LinkPredictor(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout):
-        super(LinkPredictor, self).__init__()
-
-        self.lins = torch.nn.ModuleList()
-        self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
-        for _ in range(num_layers - 2):
-            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
-        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
-
-        self.dropout = dropout
-
-    def reset_parameters(self):
-        for lin in self.lins:
-            lin.reset_parameters()
-
-    def forward(self, x_i, x_j):
-        x = x_i * x_j
-        for lin in self.lins[:-1]:
-            x = lin(x)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lins[-1](x)
-        return torch.sigmoid(x)
 
 
 def train(model, predictor, data, split_edge, optimizer, batch_size):
@@ -217,6 +196,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=100) 
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--use_iso_readout', action='store_true')
     args = parser.parse_args()
     print(args)
 
@@ -226,6 +206,7 @@ def main():
     dataset = PygLinkPropPredDataset('ogbl-vessel', 
                                     transform=T.ToSparseTensor())
     data = dataset[0]
+    print('here')
      
     # normalize x,y,z coordinates  
     data.x[:, 0] = torch.nn.functional.normalize(data.x[:, 0], dim=0)
@@ -256,12 +237,19 @@ def main():
         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
         adj_t = deg_inv_sqrt.view(-1, 1) * adj_t * deg_inv_sqrt.view(1, -1)
         data.adj_t = adj_t
+    print('here')
 
-    predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
-                              args.num_layers, args.dropout).to(device)
+    if args.use_iso_readout:
+        predictor = PyGEquivariantReadOut(args.hidden_channels,
+                                         [args.hidden_channels], 
+                                         activation=torch.nn.Sigmoid(),
+                                         dropout=args.dropout).to(device)
+    else:
+        predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                  args.num_layers, args.dropout).to(device)
 
     evaluator = Evaluator(name='ogbl-vessel')
-    logger = Logger(args.runs, args)   
+    loggers = MultiLogger(['ROC_AUC'], args.runs, args)
 
     for run in range(args.runs):
         
@@ -278,7 +266,7 @@ def main():
             if epoch % args.eval_steps == 0:
                 result = test(model, predictor, data, split_edge, evaluator,
                                args.batch_size)
-                logger.add_result(run, result)
+                loggers.add_results(run, epoch, loss, {'ROC_AUC': result})
 
                 train_roc_auc, valid_roc_auc, test_roc_auc = result
                 print(f'Run: {run + 1:02d}, '
@@ -287,12 +275,12 @@ def main():
                     f'Train: {train_roc_auc:.4f}, '
                     f'Valid: {valid_roc_auc:.4f}, '
                     f'Test: {test_roc_auc:.4f}')
-
+        loggers.save_as('vessel_'+('sage' if args.use_sage else 'gcn' )+('_iso.csv' if args.use_iso_readout else '.csv'))
         print('GNN')
-        logger.print_statistics(run)
+        loggers.print_statistics(run)
 
     print('GNN')
-    logger.print_statistics()
+    loggers.print_statistics()
 
 if __name__ == "__main__":
     main()

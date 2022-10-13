@@ -8,9 +8,14 @@ from torch_sparse import SparseTensor
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, SAGEConv
 
-from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+import sys
+sys.path.append('/home/victorialena/ogb')
+sys.path.append('/home/victorialena/homomorphicReadOut/')
 
-from logger import Logger
+from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+from examples.linkproppred.link_predictor import LinkPredictor
+from examples.linkproppred.logger import Logger, MultiLogger
+from readout import PyGEquivariantReadOut
 
 
 class GCN(torch.nn.Module):
@@ -64,33 +69,6 @@ class SAGE(torch.nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.convs[-1](x, adj_t)
         return x
-
-
-class LinkPredictor(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout):
-        super(LinkPredictor, self).__init__()
-
-        self.lins = torch.nn.ModuleList()
-        self.lins.append(torch.nn.Linear(in_channels, hidden_channels))
-        for _ in range(num_layers - 2):
-            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
-        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
-
-        self.dropout = dropout
-
-    def reset_parameters(self):
-        for lin in self.lins:
-            lin.reset_parameters()
-
-    def forward(self, x_i, x_j):
-        x = x_i * x_j
-        for lin in self.lins[:-1]:
-            x = lin(x)
-            x = F.relu(x)
-            x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.lins[-1](x)
-        return torch.sigmoid(x)
 
 
 def train(model, predictor, data, split_edge, optimizer, batch_size):
@@ -212,6 +190,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=400)
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
+    parser.add_argument('--use_iso_readout', action='store_true')
     args = parser.parse_args()
     print(args)
 
@@ -246,15 +225,17 @@ def main():
                     args.hidden_channels, args.num_layers,
                     args.dropout).to(device)
 
-    predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
-                              args.num_layers, args.dropout).to(device)
+    if args.use_iso_readout:
+        predictor = PyGEquivariantReadOut(args.hidden_channels,
+                                         [args.hidden_channels], 
+                                         activation=torch.nn.Sigmoid(),
+                                         dropout=args.dropout).to(device)
+    else:
+        predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                  args.num_layers, args.dropout).to(device)
 
     evaluator = Evaluator(name='ogbl-collab')
-    loggers = {
-        'Hits@10': Logger(args.runs, args),
-        'Hits@50': Logger(args.runs, args),
-        'Hits@100': Logger(args.runs, args),
-    }
+    loggers = MultiLogger(['Hits@10', 'Hits@50', 'Hits@100'], args.runs, args)
 
     for run in range(args.runs):
         model.reset_parameters()
@@ -270,8 +251,7 @@ def main():
             if epoch % args.eval_steps == 0:
                 results = test(model, predictor, data, split_edge, evaluator,
                                args.batch_size)
-                for key, result in results.items():
-                    loggers[key].add_result(run, result)
+                loggers.add_results(run, epoch, loss, results)
 
                 if epoch % args.log_steps == 0:
                     for key, result in results.items():
@@ -284,7 +264,7 @@ def main():
                               f'Valid: {100 * valid_hits:.2f}%, '
                               f'Test: {100 * test_hits:.2f}%')
                     print('---')
-
+        loggers.save_as('collab_'+('sage' if args.use_sage else 'gcn' )+('_iso.csv' if args.use_iso_readout else '.csv'))
         for key in loggers.keys():
             print(key)
             loggers[key].print_statistics(run)
