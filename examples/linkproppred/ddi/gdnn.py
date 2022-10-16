@@ -14,15 +14,14 @@ from torch_geometric.typing import OptPairTensor, Adj, OptTensor, Size
 # from torch_sparse import SparseTensor
 from torch_geometric.nn.conv import MessagePassing
 
-
 import sys
 sys.path.append('/home/victorialena/ogb')
-sys.path.append('/home/victorialena/homomorphicReadOut/')
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
-from examples.linkproppred.link_predictor import LinkPredictor
+from examples.linkproppred.link_predictor import *
 from examples.linkproppred.logger import Logger, MultiLogger
-from readout import PyGEquivariantReadOut
+# from readout import PyGEquivariantReadOut
+
 
 
 class SAGEConv(MessagePassing):
@@ -270,7 +269,7 @@ def main():
     parser.add_argument('--log_steps', type=int, default=1)
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
-    parser.add_argument('--use_iso_readout', action='store_true')
+    parser.add_argument('--readout_type', type=str, default='link')
     args = parser.parse_args(args=[])
     print(args)
 
@@ -286,15 +285,22 @@ def main():
 
     model = GraphSAGE(args.node_emb, args.hidden_channels, args.hidden_channels,
                       args.num_layers, args.dropout).to(device)
-    
-    if args.use_iso_readout:
-        predictor = PyGEquivariantReadOut(args.hidden_channels,
-                                         [args.hidden_channels], 
-                                         activation=torch.nn.Sigmoid(),
-                                         dropout=args.dropout).to(device)
-    else:
+
+    if args.readout_type == 'link':
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
-                                  args.num_layers+1, args.dropout).to(device)
+                                  args.num_layers, args.dropout).to(device)
+                                #   args.num_layers+1, args.dropout).to(device)
+    elif args.readout_type == 'iso':
+        predictor = IsoPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'bilinear':
+        predictor = BiLinearPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                      args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'sym':
+        predictor = SymPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                 args.num_layers, args.dropout).to(device)
+    else:
+        AssertionError("Undefined readout layer.")
 
     np.random.seed(0)
     
@@ -311,7 +317,6 @@ def main():
     edge_index=ddi_G.edge_index.to(device)
     ddiNet=to_networkx(ddi_G)
     ddiNet=ddiNet.to_undirected()
-    print(ddiNet.is_directed())
 
     #Distance Matrix
     def distance_encoding(x,y):

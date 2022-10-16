@@ -76,7 +76,9 @@ class MultiLogger(object):
 
     def save_as(self, filename, dir=DIR_PATH+'data/'):
         data = {'Run': sum([[i]*len(_) for i,_ in enumerate(self.meta['Epoch'])], []),
-                'Epoch': sum(self.meta['Epoch'], [])}
+                'Epoch': sum(self.meta['Epoch'], []),
+                'Loss': sum(self.meta['Loss'], [])
+                }
         for key, logger in self.loggers.items():
             X = np.stack(sum(logger.results, [])).T
             for x, label in zip(X, ['_train', '_valid', '_test']):

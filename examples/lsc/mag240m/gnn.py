@@ -22,6 +22,8 @@ from torch_sparse import SparseTensor
 from torch_geometric.nn import SAGEConv, GATConv
 from torch_geometric.data import NeighborSampler
 
+import sys
+sys.path.append('/home/victorialena/ogb')
 from ogb.lsc import MAG240MDataset, MAG240MEvaluator
 from root import ROOT
 
