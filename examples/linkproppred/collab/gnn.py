@@ -10,13 +10,10 @@ from torch_geometric.nn import GCNConv, SAGEConv
 
 import sys
 sys.path.append('/home/victorialena/ogb')
-sys.path.append('/home/victorialena/homomorphicReadOut/')
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
-from examples.linkproppred.link_predictor import LinkPredictor
+from examples.linkproppred.link_predictor import *
 from examples.linkproppred.logger import Logger, MultiLogger
-from readout import PyGEquivariantReadOut
-
 
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
@@ -190,7 +187,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=400)
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
-    parser.add_argument('--use_iso_readout', action='store_true')
+    parser.add_argument('--readout_type', type=str, default='link')
     args = parser.parse_args()
     print(args)
 
@@ -225,14 +222,20 @@ def main():
                     args.hidden_channels, args.num_layers,
                     args.dropout).to(device)
 
-    if args.use_iso_readout:
-        predictor = PyGEquivariantReadOut(args.hidden_channels,
-                                         [args.hidden_channels], 
-                                         activation=torch.nn.Sigmoid(),
-                                         dropout=args.dropout).to(device)
-    else:
+    if args.readout_type == 'link':
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                                   args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'iso':
+        predictor = IsoPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'bilinear':
+        predictor = BiLinearPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                      args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'sym':
+        predictor = SymPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                 args.num_layers, args.dropout).to(device)
+    else:
+        AssertionError("Undefined readout layer.")
 
     evaluator = Evaluator(name='ogbl-collab')
     loggers = MultiLogger(['Hits@10', 'Hits@50', 'Hits@100'], args.runs, args)
@@ -264,7 +267,7 @@ def main():
                               f'Valid: {100 * valid_hits:.2f}%, '
                               f'Test: {100 * test_hits:.2f}%')
                     print('---')
-        loggers.save_as('collab_'+('sage' if args.use_sage else 'gcn' )+('_iso.csv' if args.use_iso_readout else '.csv'))
+        loggers.save_as('collab_'+('sage_' if args.use_sage else 'gcn_' )+args.readout_type+'.csv')
         for key in loggers.keys():
             print(key)
             loggers[key].print_statistics(run)

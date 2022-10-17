@@ -9,14 +9,14 @@ import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, SAGEConv
 
 import sys
+sys.path.append('/home/victorialena/') #homomorphicReadOut/')
 sys.path.append('/home/victorialena/ogb')
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
 from examples.linkproppred.link_predictor import *
 from examples.linkproppred.logger import Logger, MultiLogger
-# from readout import PyGEquivariantReadOut
 
-
+import homomorphicReadOut as hrm
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):
@@ -192,6 +192,7 @@ def main():
     parser.add_argument('--eval_steps', type=int, default=5)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--readout_type', type=str, default='link')
+    parser.add_argument('--save_as', type=str, default='')
     args = parser.parse_args()
     print(args)
 
@@ -227,10 +228,14 @@ def main():
                                   args.num_layers, args.dropout).to(device)
     elif args.readout_type == 'iso':
         predictor = IsoPredictor(args.hidden_channels, args.hidden_channels, 1,
-                                args.num_layers, args.dropout).to(device)
+                                 args.num_layers, args.dropout).to(device)
     elif args.readout_type == 'bilinear':
         predictor = BiLinearPredictor(args.hidden_channels, args.hidden_channels, 1,
                                       args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'linear':
+        predictor = LinearPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                    args.num_layers, args.dropout).to(device)
+        group = [p.to(device) for p in hrm.get_feature_group_representations(args.hidden_channels).representations]
     elif args.readout_type == 'sym':
         predictor = SymPredictor(args.hidden_channels, args.hidden_channels, 1,
                                  args.num_layers, args.dropout).to(device)
@@ -251,6 +256,10 @@ def main():
         for epoch in range(1, 1 + args.epochs):
             loss = train(model, predictor, emb.weight, adj_t, split_edge,
                          optimizer, args.batch_size)
+            # if args.readout_type == 'linear':
+            #     # for param in model.parameters():
+            #     #     l2_reg += torch.norm(param)
+            #     loss += 0.001 * anit_symmetry_measure(predictor.lins[0].weight, group)
 
             if epoch % args.eval_steps == 0:
                 results = test(model, predictor, emb.weight, adj_t, split_edge,
@@ -269,7 +278,7 @@ def main():
                               f'Test: {100 * test_hits:.2f}%')
                     print('---')
 
-        loggers.save_as('ddi_'+('sage_' if args.use_sage else 'gcn_' )+args.readout_type+'.csv')
+        loggers.save_as('ddi_'+('sage_' if args.use_sage else 'gcn_' )+args.readout_type+args.save_as+'.csv')
         for key in loggers.keys():
             print(key)
             loggers[key].print_statistics(run)

@@ -1,6 +1,12 @@
 import torch
 import torch.nn.functional as F
 
+def anit_symmetry_measure(A, P):
+    A_sym = 0
+    for p in P:
+        A_sym += torch.matmul(A, p)
+    return torch.norm(A-A_sym*(1/len(P)))
+
 class LinkPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):
@@ -27,14 +33,6 @@ class LinkPredictor(torch.nn.Module):
         x = self.lins[-1](x)
         return torch.sigmoid(x)
 
-    # def forward(self, x_i, x_j):
-    #     x = x_i * x_j
-    #     for lin in self.lins:
-    #         x = F.relu(x)
-    #         x = F.dropout(x, p=self.dropout, training=self.training)
-    #         x = lin(x)
-    #     return torch.sigmoid(x)
-
 class BiLinearPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
                  dropout):
@@ -55,6 +53,32 @@ class BiLinearPredictor(torch.nn.Module):
     def forward(self, x_i, x_j):
         x = self.lins[0](x_i, x_j)
         for lin in self.lins[1:]:
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            x = lin(x)
+        return torch.sigmoid(x)
+
+
+class LinearPredictor(torch.nn.Module):
+    def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
+                 dropout):
+        super().__init__()
+
+        self.lins = torch.nn.ModuleList()
+        self.lins.append(torch.nn.Linear(in_channels*2, hidden_channels))
+        for _ in range(num_layers - 2):
+            self.lins.append(torch.nn.Linear(hidden_channels, hidden_channels))
+        self.lins.append(torch.nn.Linear(hidden_channels, out_channels))
+
+        self.dropout = dropout
+
+    def reset_parameters(self):
+        for lin in self.lins:
+            lin.reset_parameters()
+
+    def forward(self, x_i, x_j):
+        x = torch.cat([x_i, x_j], dim=1)
+        for lin in self.lins:
             x = F.relu(x)
             x = F.dropout(x, p=self.dropout, training=self.training)
             x = lin(x)
@@ -87,15 +111,6 @@ class IsoPredictor(torch.nn.Module):
         for lin in self.lins:
             lin.reset_parameters()
 
-    # def forward(self, x_i, x_j):
-    #     x = torch.cat([x_i, x_j], dim=1)
-    #     for lin in self.lins[:-1]:
-    #         x = lin(x)
-    #         x = F.relu(x)
-    #         x = F.dropout(x, p=self.dropout, training=self.training)
-    #     x = self.lins[-1](x)
-    #     return torch.sigmoid(x)
-
     def forward(self, x_i, x_j):
         x = torch.cat([x_i, x_j], dim=1)
         for lin in self.lins:
@@ -123,14 +138,6 @@ class SymPredictor(torch.nn.Module):
     def reset_parameters(self):
         for lin in self.lins:
             lin.reset_parameters()
-
-    # def forward(self, x_i, x_j):
-    #     x = torch.cat([x_i, x_j], dim=1)
-    #     for lin in self.lins:
-    #         x = F.relu(x)
-    #         x = F.dropout(x, p=self.dropout, training=self.training)
-    #         x = lin(x)
-    #     return torch.sigmoid(x)
 
     def forward(self, x_i, x_j):
         x = torch.cat([x_i, x_j], dim=1)

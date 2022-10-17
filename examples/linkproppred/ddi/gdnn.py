@@ -376,7 +376,7 @@ def main():
                               f'Test: {100 * test_hits:.2f}%')
                     print('---')
 
-        loggers.save_as('ddi_gdnn'+('_iso.csv' if args.use_iso_readout else '.csv'))
+        loggers.save_as('ddi_gdnn_'+args.readout_type+'.csv')
         for key in loggers.keys():
             print(key)
             loggers[key].print_statistics(run)
