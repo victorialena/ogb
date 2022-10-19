@@ -188,6 +188,7 @@ def main():
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--readout_type', type=str, default='link')
+    parser.add_argument('--save_as', type=str, default='')
     args = parser.parse_args()
     print(args)
 
@@ -267,7 +268,7 @@ def main():
                               f'Valid: {100 * valid_hits:.2f}%, '
                               f'Test: {100 * test_hits:.2f}%')
                     print('---')
-        loggers.save_as('collab_'+('sage_' if args.use_sage else 'gcn_' )+args.readout_type+'.csv')
+        loggers.save_as('collab_'+('sage_' if args.use_sage else 'gcn_' )+args.readout_type+args.save_as+'.csv')
         for key in loggers.keys():
             print(key)
             loggers[key].print_statistics(run)

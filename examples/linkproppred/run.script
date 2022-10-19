@@ -1,0 +1,5 @@
+python examples/linkproppred/ddi/gnn.py --use_sage --readout_type iso --lr 0.002 --epochs 400 --save_as _lrv2
+python examples/linkproppred/ddi/gnn.py --use_sage --readout_type link
+
+python examples/linkproppred/collab/gnn.py --use_sage --readout_type iso --epochs 600 --use_valedges_as_input --save_as _ep
+python examples/linkproppred/collab/gnn.py --use_sage --readout_type iso --dropout 0.25 --use_valedges_as_input --save_as _drop
