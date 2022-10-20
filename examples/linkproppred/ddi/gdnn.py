@@ -270,7 +270,7 @@ def main():
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--readout_type', type=str, default='link')
-    args = parser.parse_args(args=[])
+    args = parser.parse_args()
     print(args)
 
     device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'

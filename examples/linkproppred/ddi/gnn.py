@@ -235,9 +235,15 @@ def main():
     elif args.readout_type == 'linear':
         predictor = LinearPredictor(args.hidden_channels, args.hidden_channels, 1,
                                     args.num_layers, args.dropout).to(device)
-        group = [p.to(device) for p in hrm.get_feature_group_representations(args.hidden_channels).representations]
+        #group = [p.to(device) for p in hrm.get_feature_group_representations(args.hidden_channels).representations]
     elif args.readout_type == 'sym':
         predictor = SymPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                 args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'diff':
+        predictor = IsoDiffPredictor(args.hidden_channels, args.hidden_channels, 1,
+                                 args.num_layers, args.dropout).to(device)
+    elif args.readout_type == 'avg':
+        predictor = IsoAvgPredictor(args.hidden_channels, args.hidden_channels, 1,
                                  args.num_layers, args.dropout).to(device)
     else:
         AssertionError("Undefined readout layer.")
